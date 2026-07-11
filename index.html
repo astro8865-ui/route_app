@@ -70,7 +70,7 @@
     const map = L.map('map', { zoomControl: false }).setView([34.6937, 135.5023], 14);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
-    /* 検索機能実装 */
+    /* 検索機能 */
     let searchMarkers = [];
     document.getElementById("searchBox").oninput = function() {
       if (this.value === "") {
@@ -102,7 +102,8 @@
         });
     };
 
-    /* 現在地移動処理 */
+    /* 現在地表示処理（マーク復元） */
+    let currentPosMarker = null;
     function moveToCurrentLocation() {
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
@@ -110,7 +111,8 @@
             const lat = pos.coords.latitude;
             const lng = pos.coords.longitude;
             map.setView([lat, lng], 16);
-            L.circleMarker([lat, lng], { radius: 10, color: "cyan", fillColor: "cyan", fillOpacity: 0.8 }).addTo(map).bindPopup("現在地");
+            if (currentPosMarker) map.removeLayer(currentPosMarker);
+            currentPosMarker = L.circleMarker([lat, lng], { radius: 10, color: "cyan", fillColor: "cyan", fillOpacity: 0.8 }).addTo(map).bindPopup("現在地");
           },
           function(err) { console.log("位置情報が取得できませんでした"); }
         );
@@ -119,6 +121,7 @@
     moveToCurrentLocation();
     document.getElementById("locateBtn").onclick = moveToCurrentLocation;
 
+    /* 以下、ルート等の既存ロジックは変更なし */
     let points = [];
     let markers = [];
     let currentRoute = null;
