@@ -91,6 +91,8 @@
       if (this.value === "") {
         document.getElementById("searchResults").style.display = "none";
         document.getElementById("searchResults").innerHTML = "";
+        searchMarkers.forEach(m => map.removeLayer(m));
+        searchMarkers = [];
       }
     };
 
