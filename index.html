@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet-geometryutil"></script>
+  <script src="https://unpkg.com/leaflet-polylinedecorator"></script>
 
   <style>
     body, html { margin: 0; padding: 0; height: 100%; }
@@ -27,7 +28,6 @@
     
     #searchContainer { position: absolute; top: 10px; right: 10px; z-index: 9999; width: 250px; background: white; padding: 10px; border-radius: 8px; box-shadow: 0 3px 6px rgba(0,0,0,0.2); }
     #searchBox { padding: 10px; width: 100%; box-sizing: border-box; border-radius: 8px; border: 1px solid #ccc; }
-    #searchBtn { width: 100%; margin-top: 10px; padding: 10px; background: #4e9af1; color: white; border: none; border-radius: 8px; cursor: pointer; }
     #searchResults { margin-top: 10px; max-height: 300px; overflow-y: auto; border-top: 1px solid #eee; display: none; }
     .search-item { padding: 8px; cursor: pointer; border-bottom: 1px solid #eee; font-size: 13px; }
     .search-item:hover { background: #f0f0f0; }
@@ -57,8 +57,7 @@
   <div id="locateBtn" class="btn">現在地へ移動</div>
 
   <div id="searchContainer">
-    <input type="text" id="searchBox" placeholder="地名・施設名を入力">
-    <button id="searchBtn">検索</button>
+    <input type="text" id="searchBox" placeholder="地名・施設名を入力(Enterで検索)">
     <div id="searchResults"></div>
   </div>
 
@@ -72,15 +71,11 @@
 
     /* 検索機能 */
     let searchMarkers = [];
+    document.getElementById("searchBox").onkeydown = function(e) { if (e.key === "Enter") executeSearch(); };
     document.getElementById("searchBox").oninput = function() {
-      if (this.value === "") {
-        document.getElementById("searchResults").style.display = "none";
-        searchMarkers.forEach(m => map.removeLayer(m));
-        searchMarkers = [];
-      }
+      if (this.value === "") { document.getElementById("searchResults").style.display = "none"; searchMarkers.forEach(m => map.removeLayer(m)); searchMarkers = []; }
     };
-
-    document.getElementById("searchBtn").onclick = function() {
+    function executeSearch() {
       const query = document.getElementById("searchBox").value;
       const resDiv = document.getElementById("searchResults");
       if (!query) return;
@@ -100,176 +95,88 @@
             div.onclick = () => { marker.openPopup(); map.panTo([item.lat, item.lon]); }; resDiv.appendChild(div);
           });
         });
-    };
+    }
 
-    /* 現在地表示処理（マーク復元） */
+    /* 現在地表示処理 */
     let currentPosMarker = null;
     function moveToCurrentLocation() {
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
           function(pos) {
-            const lat = pos.coords.latitude;
-            const lng = pos.coords.longitude;
+            const lat = pos.coords.latitude; const lng = pos.coords.longitude;
             map.setView([lat, lng], 16);
             if (currentPosMarker) map.removeLayer(currentPosMarker);
             currentPosMarker = L.circleMarker([lat, lng], { radius: 10, color: "cyan", fillColor: "cyan", fillOpacity: 0.8 }).addTo(map).bindPopup("現在地");
-          },
-          function(err) { console.log("位置情報が取得できませんでした"); }
+          }
         );
       }
     }
     moveToCurrentLocation();
     document.getElementById("locateBtn").onclick = moveToCurrentLocation;
 
-    /* 以下、ルート等の既存ロジックは変更なし */
+    /* ルートロジック */
     let points = [];
     let markers = [];
     let currentRoute = null;
 
-    function getMarkerColor(index, total) {
-      if (index === 0) return "green";
-      if (index === total - 1) return "red";
-      return "blue";
-    }
+    function getMarkerColor(index, total) { return index === 0 ? "green" : (index === total - 1 ? "red" : "blue"); }
 
     function redrawMarkers() {
-      markers.forEach(m => map.removeLayer(m));
-      markers = [];
+      markers.forEach(m => map.removeLayer(m)); markers = [];
       points.forEach((p, i) => {
         const color = getMarkerColor(i, points.length);
         const marker = L.marker([p[1], p[0]], {
           draggable: true,
           icon: L.divIcon({ className: "custom-marker", html: `<div style="width:14px;height:14px;background:${color};border-radius:50%;border:2px solid white;"></div>` })
         }).addTo(map);
-
-        marker.on("click", function(e) {
-          L.DomEvent.stopPropagation(e);
-          points.splice(i, 1);
-          if (currentRoute) map.removeLayer(currentRoute);
-          redrawMarkers();
-          if (points.length >= 2) drawRoute(points);
-        });
-
-        marker.on("dragend", function(e) {
-          const latlng = e.target.getLatLng();
-          points[i] = [latlng.lng, latlng.lat];
-          if (currentRoute) map.removeLayer(currentRoute);
-          redrawMarkers();
-          if (points.length >= 2) drawRoute(points);
-        });
+        marker.on("click", function(e) { L.DomEvent.stopPropagation(e); points.splice(i, 1); if (currentRoute) map.removeLayer(currentRoute); redrawMarkers(); if (points.length >= 2) drawRoute(points); });
+        marker.on("dragend", function(e) { const latlng = e.target.getLatLng(); points[i] = [latlng.lng, latlng.lat]; if (currentRoute) map.removeLayer(currentRoute); redrawMarkers(); if (points.length >= 2) drawRoute(points); });
         markers.push(marker);
       });
     }
 
-    map.on('click', function(e) {
-      const lat = e.latlng.lat;
-      const lng = e.latlng.lng;
-      points.push([lng, lat]);
-      redrawMarkers();
-      if (points.length >= 2) drawRoute(points);
-    });
+    map.on('click', function(e) { points.push([e.latlng.lng, e.latlng.lat]); redrawMarkers(); if (points.length >= 2) drawRoute(points); });
 
     function drawRoute(points) {
       const coordsStr = points.map(p => `${p[0]},${p[1]}`).join(";");
-      const url = `https://router.project-osrm.org/route/v1/driving/${coordsStr}?overview=full&geometries=geojson`;
-
-      fetch(url)
+      fetch(`https://router.project-osrm.org/route/v1/driving/${coordsStr}?overview=full&geometries=geojson`)
         .then(res => res.json())
         .then(data => {
           if (currentRoute) map.removeLayer(currentRoute);
           if (!data.routes || data.routes.length === 0) return;
           const route = data.routes[0];
-          const km = (route.distance / 1000).toFixed(2);
-          document.getElementById("distanceBox").innerText = `総距離：${km} km`;
-
+          document.getElementById("distanceBox").innerText = `総距離：${(route.distance / 1000).toFixed(2)} km`;
           const coords = route.geometry.coordinates.map(c => [c[1], c[0]]);
-          currentRoute = L.polyline(coords, { color: 'blue', weight: 8 }).addTo(map);
+          const polyline = L.polyline(coords, { color: 'blue', weight: 8 });
+          const decorator = L.polylineDecorator(polyline, {
+            patterns: [{ offset: 25, repeat: 50, symbol: L.Symbol.arrowHead({ pixelSize: 12, pathOptions: { color: 'white', fillOpacity: 1, weight: 0 } }) }]
+          });
+          currentRoute = L.layerGroup([polyline, decorator]).addTo(map);
 
-          currentRoute.on("click", function(e) {
+          polyline.on("click", function(e) {
             L.DomEvent.stopPropagation(e);
-            const lat = e.latlng.lat;
-            const lng = e.latlng.lng;
-            let minDist = Infinity;
-            let insertIndex = points.length - 1;
-
+            let minDist = Infinity; let insertIndex = points.length - 1;
             for (let i = 0; i < points.length - 1; i++) {
-              const p1 = L.latLng(points[i][1], points[i][0]);
-              const p2 = L.latLng(points[i+1][1], points[i+1][0]);
-              const click = L.latLng(lat, lng);
-              const dist = L.GeometryUtil.distanceSegment(map, click, p1, p2);
-              if (dist < minDist) {
-                minDist = dist;
-                insertIndex = i + 1;
-              }
+              const dist = L.GeometryUtil.distanceSegment(map, e.latlng, L.latLng(points[i][1], points[i][0]), L.latLng(points[i+1][1], points[i+1][0]));
+              if (dist < minDist) { minDist = dist; insertIndex = i + 1; }
             }
-            points.splice(insertIndex, 0, [lng, lat]);
-            redrawMarkers();
-            drawRoute(points);
+            points.splice(insertIndex, 0, [e.latlng.lng, e.latlng.lat]);
+            redrawMarkers(); drawRoute(points);
           });
         });
     }
 
-    document.getElementById("undoBtn").onclick = function() {
-      if (points.length === 0) return;
-      points.pop();
-      if (currentRoute) map.removeLayer(currentRoute);
-      redrawMarkers();
-      if (points.length >= 2) drawRoute(points);
-      else document.getElementById("distanceBox").innerText = "総距離：0 km";
-    };
-
-    document.getElementById("clearBtn").onclick = function() {
-      if (!confirm("本当に全てのポイントとルートを削除しますか？")) return;
-      markers.forEach(m => map.removeLayer(m));
-      markers = []; points = [];
-      if (currentRoute) { map.removeLayer(currentRoute); currentRoute = null; }
-      document.getElementById("distanceBox").innerText = "総距離：0 km";
-    };
-
-    document.getElementById("saveBtn").onclick = function() {
-      if (points.length < 2) { alert("ルートがありません"); return; }
-      const name = prompt("ルート名を入力してください");
-      if (!name) return;
-      let saved = JSON.parse(localStorage.getItem("routes") || "[]");
-      const existingIndex = saved.findIndex(r => r.name === name);
-      if (existingIndex !== -1) {
-        if (!confirm(`「${name}」は既に存在します。上書きしますか？`)) return;
-        saved[existingIndex] = { name, points };
-      } else { saved.push({ name, points }); }
-      localStorage.setItem("routes", JSON.stringify(saved));
-      alert("保存しました");
-    };
-
+    document.getElementById("undoBtn").onclick = function() { points.pop(); if (currentRoute) map.removeLayer(currentRoute); redrawMarkers(); if (points.length >= 2) drawRoute(points); else document.getElementById("distanceBox").innerText = "総距離：0 km"; };
+    document.getElementById("clearBtn").onclick = function() { if (!confirm("削除しますか？")) return; markers.forEach(m => map.removeLayer(m)); markers = []; points = []; if (currentRoute) { map.removeLayer(currentRoute); currentRoute = null; } document.getElementById("distanceBox").innerText = "総距離：0 km"; };
+    document.getElementById("saveBtn").onclick = function() { if (points.length < 2) { alert("ルートがありません"); return; } const name = prompt("ルート名"); if (!name) return; let saved = JSON.parse(localStorage.getItem("routes") || "[]"); const idx = saved.findIndex(r => r.name === name); if (idx !== -1) saved[idx] = { name, points }; else saved.push({ name, points }); localStorage.setItem("routes", JSON.stringify(saved)); alert("保存しました"); };
     document.getElementById("listBtn").onclick = function() {
-      const listDiv = document.getElementById("routeList");
-      listDiv.style.display = listDiv.style.display === "none" ? "block" : "none";
-      const saved = JSON.parse(localStorage.getItem("routes") || "[]");
-      listDiv.innerHTML = "";
+      const listDiv = document.getElementById("routeList"); listDiv.style.display = listDiv.style.display === "none" ? "block" : "none";
+      const saved = JSON.parse(localStorage.getItem("routes") || "[]"); listDiv.innerHTML = "";
       saved.forEach((route, index) => {
-        const item = document.createElement("div");
-        item.innerHTML = `<strong>${route.name}</strong><br>
-          <button class="loadBtn" data-index="${index}">読み込み</button>
-          <button class="deleteBtn" data-index="${index}">削除</button>`;
-        listDiv.appendChild(item);
+        const item = document.createElement("div"); item.innerHTML = `<strong>${route.name}</strong><br><button class="loadBtn" data-index="${index}">読み込み</button><button class="deleteBtn" data-index="${index}">削除</button>`; listDiv.appendChild(item);
       });
-      document.querySelectorAll(".loadBtn").forEach(btn => btn.onclick = function() {
-        const idx = this.dataset.index;
-        const route = JSON.parse(localStorage.getItem("routes"))[idx];
-        points = route.points;
-        markers.forEach(m => map.removeLayer(m));
-        markers = [];
-        if (currentRoute) map.removeLayer(currentRoute);
-        redrawMarkers();
-        if (points.length >= 2) drawRoute(points);
-      });
-      document.querySelectorAll(".deleteBtn").forEach(btn => btn.onclick = function() {
-        if (!confirm("本当にこのルートを削除しますか？")) return;
-        const idx = this.dataset.index;
-        let saved = JSON.parse(localStorage.getItem("routes"));
-        saved.splice(idx, 1);
-        localStorage.setItem("routes", JSON.stringify(saved));
-        document.getElementById("listBtn").click(); document.getElementById("listBtn").click();
-      });
+      document.querySelectorAll(".loadBtn").forEach(btn => btn.onclick = function() { points = JSON.parse(localStorage.getItem("routes"))[this.dataset.index].points; redrawMarkers(); if (points.length >= 2) drawRoute(points); });
+      document.querySelectorAll(".deleteBtn").forEach(btn => btn.onclick = function() { let saved = JSON.parse(localStorage.getItem("routes")); saved.splice(this.dataset.index, 1); localStorage.setItem("routes", JSON.stringify(saved)); document.getElementById("listBtn").click(); document.getElementById("listBtn").click(); });
     };
   </script>
 </body>
