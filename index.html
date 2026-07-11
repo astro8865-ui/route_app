@@ -173,10 +173,26 @@
       const listDiv = document.getElementById("routeList"); listDiv.style.display = listDiv.style.display === "none" ? "block" : "none";
       const saved = JSON.parse(localStorage.getItem("routes") || "[]"); listDiv.innerHTML = "";
       saved.forEach((route, index) => {
-        const item = document.createElement("div"); item.innerHTML = `<strong>${route.name}</strong><br><button class="loadBtn" data-index="${index}">読み込み</button><button class="deleteBtn" data-index="${index}">削除</button>`; listDiv.appendChild(item);
+        const item = document.createElement("div");
+        item.innerHTML = `<strong>${route.name}</strong><br>
+          <button class="loadBtn" data-index="${index}">読込</button>
+          <button class="joinBtn" data-index="${index}">結合</button>
+          <button class="deleteBtn" data-index="${index}">削除</button>`;
+        listDiv.appendChild(item);
       });
-      document.querySelectorAll(".loadBtn").forEach(btn => btn.onclick = function() { points = JSON.parse(localStorage.getItem("routes"))[this.dataset.index].points; redrawMarkers(); if (points.length >= 2) drawRoute(points); });
-      document.querySelectorAll(".deleteBtn").forEach(btn => btn.onclick = function() { let saved = JSON.parse(localStorage.getItem("routes")); saved.splice(this.dataset.index, 1); localStorage.setItem("routes", JSON.stringify(saved)); document.getElementById("listBtn").click(); document.getElementById("listBtn").click(); });
+      document.querySelectorAll(".loadBtn").forEach(btn => btn.onclick = function() {
+        points = JSON.parse(localStorage.getItem("routes"))[this.dataset.index].points;
+        redrawMarkers(); if (points.length >= 2) drawRoute(points);
+      });
+      document.querySelectorAll(".joinBtn").forEach(btn => btn.onclick = function() {
+        points = points.concat(JSON.parse(localStorage.getItem("routes"))[this.dataset.index].points);
+        redrawMarkers(); if (points.length >= 2) drawRoute(points);
+      });
+      document.querySelectorAll(".deleteBtn").forEach(btn => btn.onclick = function() {
+        let saved = JSON.parse(localStorage.getItem("routes")); saved.splice(this.dataset.index, 1);
+        localStorage.setItem("routes", JSON.stringify(saved));
+        document.getElementById("listBtn").click(); document.getElementById("listBtn").click();
+      });
     };
   </script>
 </body>
