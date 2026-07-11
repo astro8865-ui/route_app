@@ -14,40 +14,44 @@
     body, html { margin: 0; padding: 0; height: 100%; }
     #map { height: 100%; width: 100%; position: relative; z-index: 1; }
 
-    /* ハンバーガーメニュー用スタイル（サイズ調整済み） */
+    /* ハンバーガーメニュー用スタイル */
     #menuToggle {
       position: absolute; top: 10px; left: 10px; z-index: 10000;
-      padding: 8px 12px; background: rgba(255, 255, 255, 0.7);
+      padding: 6px 10px; background: rgba(255, 255, 255, 0.7);
       backdrop-filter: blur(5px); border-radius: 6px; cursor: pointer;
-      font-size: 16px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      font-size: 14px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);
     }
     #menuPanel {
-      position: absolute; top: 50px; left: 10px; z-index: 9999;
+      position: absolute; top: 45px; left: 10px; z-index: 9999;
       background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(5px);
-      padding: 15px; border-radius: 8px; box-shadow: 0 3px 6px rgba(0,0,0,0.2);
-      display: none; width: 230px;
+      padding: 8px; border-radius: 8px; box-shadow: 0 3px 6px rgba(0,0,0,0.2);
+      display: none; width: 200px;
     }
 
+    /* ボタンサイズを小型化 */
     .btn {
-      width: 100%; box-sizing: border-box; margin-bottom: 8px; padding: 15px;
+      width: 100%; box-sizing: border-box; margin-bottom: 4px; padding: 6px;
       background: linear-gradient(135deg, #4e9af1, #1c6cd5);
-      color: white; border: none; border-radius: 8px; cursor: pointer;
-      font-size: 14px; font-weight: bold;
+      color: white; border: none; border-radius: 4px; cursor: pointer;
+      font-size: 10px; font-weight: bold;
     }
 
-    #searchContainer { margin-bottom: 15px; }
-    #searchBox { padding: 10px; width: 100%; box-sizing: border-box; border-radius: 8px; border: 1px solid #ccc; }
-    #searchResults { margin-top: 10px; max-height: 200px; overflow-y: auto; display: none; }
-    .search-item { padding: 8px; cursor: pointer; font-size: 13px; background: rgba(255,255,255,0.5); }
+    #searchContainer { margin-bottom: 8px; }
+    #searchBox { padding: 4px; width: 100%; box-sizing: border-box; border-radius: 4px; border: 1px solid #ccc; font-size: 11px; }
+    #searchResults { margin-top: 4px; max-height: 120px; overflow-y: auto; display: none; }
+    .search-item { padding: 4px; cursor: pointer; font-size: 10px; background: rgba(255,255,255,0.5); }
 
     #distanceBox {
       background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(5px);
-      padding: 10px; border-radius: 8px; margin-bottom: 10px; font-size: 14px; font-weight: bold;
+      padding: 4px; border-radius: 4px; margin-bottom: 4px; font-size: 10px; font-weight: bold;
     }
 
     #routeList {
-      max-height: 200px; overflow-y: auto; display: none; font-size: 13px;
+      max-height: 120px; overflow-y: auto; display: none; font-size: 10px;
     }
+    
+    /* リスト内のボタン */
+    button { padding: 1px 4px; font-size: 9px; cursor: pointer; }
 
     .custom-marker { transform: translate(-7px, -7px); }
   </style>
@@ -75,13 +79,11 @@
     const map = L.map('map', { zoomControl: false }).setView([34.6937, 135.5023], 14);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
-    // メニュー開閉
     document.getElementById("menuToggle").onclick = function() {
       const p = document.getElementById("menuPanel");
       p.style.display = (p.style.display === "none" || p.style.display === "") ? "block" : "none";
     };
 
-    /* --- 検索・現在地・ルートロジック --- */
     let searchMarkers = [];
     document.getElementById("searchBox").onkeydown = function(e) { if (e.key === "Enter") executeSearch(); };
     
@@ -200,6 +202,7 @@
       const saved = JSON.parse(localStorage.getItem("routes") || "[]"); listDiv.innerHTML = "";
       saved.forEach((route, index) => {
         const item = document.createElement("div");
+        item.style.marginBottom = "4px";
         item.innerHTML = `<strong>${route.name}</strong><br><button class="loadBtn" data-index="${index}">読込</button> <button class="reverseBtn" data-index="${index}">反転</button> <button class="deleteBtn" data-index="${index}">削除</button>`;
         listDiv.appendChild(item);
       });
