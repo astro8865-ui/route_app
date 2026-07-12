@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>ルート作成アプリ（検索機能付）</title>
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
@@ -11,13 +11,26 @@
   <script src="https://unpkg.com/leaflet-polylinedecorator"></script>
 
   <style>
-    body, html { margin: 0; padding: 0; height: 100%; }
-    #map { height: 100%; width: 100%; position: relative; z-index: 1; }
+    body, html { 
+      margin: 0; padding: 0; height: 100%; 
+      overflow: hidden; 
+      overscroll-behavior: none;
+      position: fixed;
+      width: 100%;
+    }
+    #map { 
+      height: 100%; width: 100%; 
+      position: relative; z-index: 1; 
+      touch-action: pan-x pan-y;
+    }
 
     #topRightContainer {
       position: absolute; top: 10px; right: 10px; z-index: 1000;
       display: flex; flex-direction: column; gap: 8px; align-items: flex-end;
+      pointer-events: none;
     }
+    #distanceBox, .icon-btn { pointer-events: auto; }
+
     #distanceBox {
       background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(5px);
       padding: 8px 12px; border-radius: 6px; font-size: 14px; font-weight: bold;
@@ -41,6 +54,8 @@
       background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(5px);
       padding: 8px; border-radius: 8px; box-shadow: 0 3px 6px rgba(0,0,0,0.2);
       display: none; width: 200px;
+      touch-action: auto;
+      pointer-events: auto;
     }
 
     .btn {
@@ -85,14 +100,6 @@
   <div id="map"></div>
 
   <script>
-      // スクロールを強制的かつ完全に停止させる
-    document.body.addEventListener('touchmove', function(e) {
-      // 地図（#map）以外の領域でのドラッグを無効化する
-      if (e.target.id !== 'map' && !document.getElementById('map').contains(e.target)) {
-        e.preventDefault();
-      }
-    }, { passive: false });
-
     // iOS特有の「画面全体が動く」挙動を封じ込める
     document.addEventListener('gesturestart', function (e) {
       e.preventDefault();
@@ -187,13 +194,12 @@
       points.forEach((p, i) => {
         const color = i === 0 ? "green" : (i === points.length - 1 ? "red" : "blue");
         
-        // 40x40pxの透明な枠の中にマーカーを配置してヒットエリアを拡大
         const marker = L.marker([p[1], p[0]], {
           draggable: true,
           icon: L.divIcon({
             className: "custom-marker",
-            iconSize: [40, 40], // ヒットエリアを大きく設定
-            iconAnchor: [20, 20], // 中心を合わせる
+            iconSize: [40, 40],
+            iconAnchor: [20, 20],
             html: `<div style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;">
                      <div style="width:14px;height:14px;background:${color};border-radius:50%;border:2px solid white;pointer-events:none;"></div>
                    </div>`
