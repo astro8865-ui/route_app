@@ -173,16 +173,26 @@
       markers.forEach(m => map.removeLayer(m)); markers = [];
       points.forEach((p, i) => {
         const color = i === 0 ? "green" : (i === points.length - 1 ? "red" : "blue");
+        
+        // 40x40pxの透明な枠の中にマーカーを配置してヒットエリアを拡大
         const marker = L.marker([p[1], p[0]], {
           draggable: true,
-          icon: L.divIcon({ className: "custom-marker", html: `<div style="width:14px;height:14px;background:${color};border-radius:50%;border:2px solid white;"></div>` })
+          icon: L.divIcon({
+            className: "custom-marker",
+            iconSize: [40, 40], // ヒットエリアを大きく設定
+            iconAnchor: [20, 20], // 中心を合わせる
+            html: `<div style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;">
+                     <div style="width:14px;height:14px;background:${color};border-radius:50%;border:2px solid white;pointer-events:none;"></div>
+                   </div>`
+          })
         }).addTo(map);
+
         marker.on("click", (e) => { L.DomEvent.stopPropagation(e); points.splice(i, 1); updateMap(); });
         marker.on("dragend", (e) => { const latlng = e.target.getLatLng(); points[i] = [latlng.lng, latlng.lat]; updateMap(); });
         markers.push(marker);
       });
     }
-
+    
     function updateMap() {
       redrawMarkers();
       if (points.length >= 2) { drawRoute(); }
