@@ -14,7 +14,6 @@
     body, html { margin: 0; padding: 0; height: 100%; }
     #map { height: 100%; width: 100%; position: relative; z-index: 1; }
 
-    /* 右上表示エリア */
     #topRightContainer {
       position: absolute; top: 10px; right: 10px; z-index: 1000;
       display: flex; flex-direction: column; gap: 8px; align-items: flex-end;
@@ -31,7 +30,6 @@
       font-size: 18px; border: 2px solid white;
     }
 
-    /* ハンバーガーメニュー用スタイル */
     #menuToggle {
       position: absolute; top: 10px; left: 10px; z-index: 10000;
       padding: 6px 10px; background: rgba(255, 255, 255, 0.7);
@@ -59,7 +57,8 @@
 
     #routeList { max-height: 120px; overflow-y: auto; display: none; font-size: 10px; }
     button { padding: 1px 4px; font-size: 9px; cursor: pointer; }
-    .custom-marker { transform: translate(-7px, -7px); }
+    /* transformを削除し、位置ズレを解消 */
+    .custom-marker { } 
   </style>
 </head>
 
@@ -155,15 +154,14 @@
       markers.forEach(m => map.removeLayer(m)); markers = [];
       points.forEach((p, i) => {
         const color = i === 0 ? "green" : (i === points.length - 1 ? "red" : "blue");
-        // 見た目のマーカーサイズ(14px)に対し、判定を約2倍(28px)に設定
+        
         const icon = L.divIcon({
           className: "custom-marker",
-          html: `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">
-                   <div style="width:14px;height:14px;background:${color};border-radius:50%;border:2px solid white;"></div>
-                 </div>`,
+          html: `<div style="width:14px;height:14px;background:${color};border-radius:50%;border:2px solid white;box-sizing:border-box;"></div>`,
           iconSize: [28, 28],
           iconAnchor: [14, 14]
         });
+
         const marker = L.marker([p[1], p[0]], {
           draggable: true,
           icon: icon
@@ -201,4 +199,73 @@
           const polyline = L.polyline(route.geometry.coordinates.map(c => [c[1], c[0]]), { color: 'blue', weight: 8 }).addTo(map);
           
           arrowDecorator = L.polylineDecorator(polyline, {
-            patterns: [{ offset: 25, repeat: 50, symbol: L.Symbol.arrowHead({ pixelSize: 12, pathOptions: { color: 'white', weight:
+            patterns: [{ offset: 25, repeat: 50, symbol: L.Symbol.arrowHead({ pixelSize: 12, pathOptions: { color: 'white', weight: 2 } }) }]
+          }).addTo(map);
+
+          polyline.on("click", (e) => {
+            L.DomEvent.stopPropagation(e);
+            let minDist = Infinity; let insertIndex = points.length - 1;
+            for (let i = 0; i < points.length - 1; i++) {
+              const dist = L.GeometryUtil.distanceSegment(map, e.latlng, L.latLng(points[i][1], points[i][0]), L.latLng(points[i+1][1], points[i+1][0]));
+              if (dist < minDist) { minDist = dist; insertIndex = i + 1; }
+            }
+            points.splice(insertIndex, 0, [e.latlng.lng, e.latlng.lat]);
+            updateMap();
+          });
+          currentRoute = polyline;
+        });
+    }
+
+    // --- 各種操作 ---
+    document.getElementById("reverseBtn").onclick = () => { if(points.length < 2) return; points.reverse(); updateMap(); };
+    document.getElementById("undoBtn").onclick = () => { points.pop(); updateMap(); };
+    document.getElementById("clearBtn").onclick = () => { 
+      if (points.length > 0 && confirm("すべてのポイントを削除しますか？")) {
+        points = []; 
+        updateMap();
+        document.getElementById("menuPanel").style.display = "none";
+      }
+    };
+
+    // --- 保存関連 ---
+    document.getElementById("saveBtn").onclick = () => {
+      const name = prompt("ルート名");
+      if (!name) return;
+      let saved = JSON.parse(localStorage.getItem("routes") || "[]");
+      saved.push({ name, points });
+      localStorage.setItem("routes", JSON.stringify(saved));
+    };
+
+    document.getElementById("listBtn").onclick = function() {
+      const listDiv = document.getElementById("routeList");
+      listDiv.style.display = listDiv.style.display === "none" ? "block" : "none";
+      if (listDiv.style.display === "block") {
+        listDiv.innerHTML = "";
+        const saved = JSON.parse(localStorage.getItem("routes") || "[]");
+        saved.forEach((route, index) => {
+          const item = document.createElement("div");
+          item.innerHTML = `<strong>${route.name}</strong><br><button onclick="loadRoute(${index})">読込</button> <button onclick="deleteRoute(${index})">削除</button>`;
+          listDiv.appendChild(item);
+        });
+      }
+    };
+
+    window.loadRoute = (idx) => {
+      points = JSON.parse(localStorage.getItem("routes"))[idx].points;
+      updateMap();
+      if (points.length > 0) {
+        const bounds = L.latLngBounds(points.map(p => [p[1], p[0]]));
+        map.fitBounds(bounds, { padding: [50, 50] });
+      }
+      document.getElementById("menuPanel").style.display = "none";
+      document.getElementById("routeList").style.display = "none";
+    };
+
+    window.deleteRoute = (idx) => {
+      let saved = JSON.parse(localStorage.getItem("routes")); saved.splice(idx, 1);
+      localStorage.setItem("routes", JSON.stringify(saved));
+      document.getElementById("listBtn").click(); document.getElementById("listBtn").click();
+    };
+  </script>
+</body>
+</html>
