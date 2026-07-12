@@ -3,10 +3,7 @@
 地図上でクリックしてルートを作成・保存・結合できるWebアプリです。OSM (OpenStreetMap) と OSRM を利用しています。
 
 ## 🚀 公開URL
-PC
-https://astro8865.github.io/route_app/index.html
 
-Smart Phone
 https://astro8865.github.io/route_app/indexsp.html
 
 ## 🛠 機能
