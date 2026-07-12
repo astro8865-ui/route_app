@@ -57,8 +57,7 @@
 
     #routeList { max-height: 120px; overflow-y: auto; display: none; font-size: 10px; }
     button { padding: 1px 4px; font-size: 9px; cursor: pointer; }
-    /* transformを削除し、位置ズレを解消 */
-    .custom-marker { } 
+    .custom-marker { transform: translate(-7px, -7px); }
   </style>
 </head>
 
@@ -68,6 +67,7 @@
     <div id="locateBtn" class="icon-btn" title="現在地へ移動">📍</div>
     <div id="undoBtn" class="icon-btn" title="直前のポイント削除">↩️</div>
     <div id="reverseBtn" class="icon-btn" title="ルート反転">🔄</div>
+    <div id="navBtn" class="icon-btn" title="カーナビモード">🚗</div>
   </div>
   
   <div id="menuToggle">≡</div>
@@ -93,7 +93,6 @@
       p.style.display = (p.style.display === "none" || p.style.display === "") ? "block" : "none";
     };
 
-    // --- 検索機能 ---
     let searchMarkers = [];
     document.getElementById("searchBox").oninput = function() { if (!this.value) { clearSearch(); } };
     document.getElementById("searchBox").onkeydown = function(e) { if (e.key === "Enter") executeSearch(); };
@@ -110,9 +109,7 @@
       const query = document.getElementById("searchBox").value;
       const resDiv = document.getElementById("searchResults");
       if (!query) return;
-      
       document.getElementById("searchBox").blur();
-
       searchMarkers.forEach(m => map.removeLayer(m)); searchMarkers = [];
       resDiv.style.display = "block"; resDiv.innerHTML = "検索中...";
       const bounds = map.getBounds();
@@ -131,8 +128,14 @@
         });
     }
 
-    // --- 現在地機能 ---
     let myMarker = null;
+    let points = [];
+    let markers = [];
+    let currentRoute = null;
+    let arrowDecorator = null;
+    let navigating = false;
+    let watchId = null;
+
     document.getElementById("locateBtn").onclick = () => {
       if (!navigator.geolocation) return alert("ブラウザが位置情報に対応していません");
       navigator.geolocation.getCurrentPosition(pos => {
@@ -144,46 +147,49 @@
       });
     };
 
-    // --- ルート作成・描画 ---
-    let points = [];
-    let markers = [];
-    let currentRoute = null;
-    let arrowDecorator = null;
+    document.getElementById("navBtn").onclick = () => {
+      navigating = !navigating;
+      document.getElementById("navBtn").style.backgroundColor = navigating ? "yellow" : "";
+      if (navigating) {
+        if (!navigator.geolocation) return alert("位置情報非対応");
+        watchId = navigator.geolocation.watchPosition(pos => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          map.setView([lat, lng]);
+          if (myMarker) myMarker.setLatLng([lat, lng]);
+          else myMarker = L.circleMarker([lat, lng], { radius: 8, color: 'white', fillColor: 'orange', fillOpacity: 0.8, weight: 2 }).addTo(map);
+        }, null, { enableHighAccuracy: true });
+      } else {
+        if (watchId) navigator.geolocation.clearWatch(watchId);
+      }
+    };
+
+    function clearRouteLayers() {
+      if (currentRoute) { map.removeLayer(currentRoute); currentRoute = null; }
+      if (arrowDecorator) { map.removeLayer(arrowDecorator); arrowDecorator = null; }
+    }
 
     function redrawMarkers() {
       markers.forEach(m => map.removeLayer(m)); markers = [];
       points.forEach((p, i) => {
         const color = i === 0 ? "green" : (i === points.length - 1 ? "red" : "blue");
-        
-        const icon = L.divIcon({
-          className: "custom-marker",
-          html: `<div style="width:14px;height:14px;background:${color};border-radius:50%;border:2px solid white;box-sizing:border-box;"></div>`,
-          iconSize: [28, 28],
-          iconAnchor: [14, 14]
-        });
-
         const marker = L.marker([p[1], p[0]], {
           draggable: true,
-          icon: icon
+          icon: L.divIcon({ className: "custom-marker", html: `<div style="width:14px;height:14px;background:${color};border-radius:50%;border:2px solid white;"></div>` })
         }).addTo(map);
-        
-        marker.on("dragstart", () => map.dragging.disable());
-        marker.on("dragend", (e) => { 
-          map.dragging.enable();
-          const latlng = e.target.getLatLng(); 
-          points[i] = [latlng.lng, latlng.lat]; 
-          updateMap(); 
-        });
         marker.on("click", (e) => { L.DomEvent.stopPropagation(e); points.splice(i, 1); updateMap(); });
+        marker.on("dragend", (e) => { const latlng = e.target.getLatLng(); points[i] = [latlng.lng, latlng.lat]; updateMap(); });
         markers.push(marker);
       });
     }
 
     function updateMap() {
-      if (currentRoute) map.removeLayer(currentRoute);
-      if (arrowDecorator) map.removeLayer(arrowDecorator);
       redrawMarkers();
-      if (points.length >= 2) drawRoute(); else document.getElementById("distanceBox").innerText = "総距離：0 km";
+      if (points.length >= 2) { drawRoute(); }
+      else { 
+        clearRouteLayers();
+        document.getElementById("distanceBox").innerText = "総距離：0 km"; 
+      }
     }
 
     map.on('click', (e) => { points.push([e.latlng.lng, e.latlng.lat]); updateMap(); });
@@ -193,16 +199,20 @@
       fetch(`https://router.project-osrm.org/route/v1/driving/${coordsStr}?overview=full&geometries=geojson`)
         .then(res => res.json())
         .then(data => {
-          if (!data.routes || data.routes.length === 0) return;
+          if (!data.routes || data.routes.length === 0) {
+            document.getElementById("distanceBox").innerText = "経路なし";
+            return;
+          }
+          clearRouteLayers();
           const route = data.routes[0];
           document.getElementById("distanceBox").innerText = `総距離：${(route.distance / 1000).toFixed(2)} km`;
-          const polyline = L.polyline(route.geometry.coordinates.map(c => [c[1], c[0]]), { color: 'blue', weight: 8 }).addTo(map);
           
-          arrowDecorator = L.polylineDecorator(polyline, {
+          currentRoute = L.polyline(route.geometry.coordinates.map(c => [c[1], c[0]]), { color: 'blue', weight: 8 }).addTo(map);
+          arrowDecorator = L.polylineDecorator(currentRoute, {
             patterns: [{ offset: 25, repeat: 50, symbol: L.Symbol.arrowHead({ pixelSize: 12, pathOptions: { color: 'white', weight: 2 } }) }]
           }).addTo(map);
-
-          polyline.on("click", (e) => {
+          
+          currentRoute.on("click", (e) => {
             L.DomEvent.stopPropagation(e);
             let minDist = Infinity; let insertIndex = points.length - 1;
             for (let i = 0; i < points.length - 1; i++) {
@@ -212,22 +222,18 @@
             points.splice(insertIndex, 0, [e.latlng.lng, e.latlng.lat]);
             updateMap();
           });
-          currentRoute = polyline;
         });
     }
 
-    // --- 各種操作 ---
     document.getElementById("reverseBtn").onclick = () => { if(points.length < 2) return; points.reverse(); updateMap(); };
     document.getElementById("undoBtn").onclick = () => { points.pop(); updateMap(); };
     document.getElementById("clearBtn").onclick = () => { 
       if (points.length > 0 && confirm("すべてのポイントを削除しますか？")) {
-        points = []; 
-        updateMap();
+        points = []; updateMap();
         document.getElementById("menuPanel").style.display = "none";
       }
     };
 
-    // --- 保存関連 ---
     document.getElementById("saveBtn").onclick = () => {
       const name = prompt("ルート名");
       if (!name) return;
@@ -254,8 +260,7 @@
       points = JSON.parse(localStorage.getItem("routes"))[idx].points;
       updateMap();
       if (points.length > 0) {
-        const bounds = L.latLngBounds(points.map(p => [p[1], p[0]]));
-        map.fitBounds(bounds, { padding: [50, 50] });
+        map.fitBounds(L.latLngBounds(points.map(p => [p[1], p[0]])), { padding: [50, 50] });
       }
       document.getElementById("menuPanel").style.display = "none";
       document.getElementById("routeList").style.display = "none";
