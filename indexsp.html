@@ -94,6 +94,43 @@
       p.style.display = (p.style.display === "none" || p.style.display === "") ? "block" : "none";
     };
 
+    // --- 検索機能 ---
+    let searchMarkers = [];
+    document.getElementById("searchBox").oninput = function() { if (!this.value) { clearSearch(); } };
+    document.getElementById("searchBox").onkeydown = function(e) { if (e.key === "Enter") executeSearch(); };
+    
+    function clearSearch() {
+      searchMarkers.forEach(m => map.removeLayer(m)); searchMarkers = [];
+      document.getElementById("searchResults").innerHTML = "";
+      document.getElementById("searchResults").style.display = "none";
+    }
+
+    // ズーム関数をグローバルに定義
+    window.zoomTo = (lat, lon) => { map.setView([lat, lon], 16); };
+
+    function executeSearch() {
+      const query = document.getElementById("searchBox").value;
+      const resDiv = document.getElementById("searchResults");
+      if (!query) return;
+      searchMarkers.forEach(m => map.removeLayer(m)); searchMarkers = [];
+      resDiv.style.display = "block"; resDiv.innerHTML = "検索中...";
+      const bounds = map.getBounds();
+      const viewbox = `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
+      fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=50&viewbox=${viewbox}&bounded=1`)
+        .then(res => res.json())
+        .then(data => {
+          resDiv.innerHTML = "";
+          data.forEach(item => {
+            const marker = L.marker([item.lat, item.lon]).addTo(map);
+            // ポップアップ内にズームボタンを追加
+            marker.bindPopup(`<b>${item.display_name.split(',')[0]}</b><br><button onclick="zoomTo(${item.lat}, ${item.lon})">ズーム</button>`);
+            searchMarkers.push(marker);
+            const div = document.createElement("div"); div.className = "search-item"; div.innerText = item.display_name;
+            div.onclick = () => { marker.openPopup(); map.panTo([item.lat, item.lon]); }; resDiv.appendChild(div);
+          });
+        });
+    }
+
     // --- ルート作成・描画 ---
     let points = [];
     let markers = [];
