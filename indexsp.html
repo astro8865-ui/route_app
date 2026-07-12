@@ -112,7 +112,6 @@
       const resDiv = document.getElementById("searchResults");
       if (!query) return;
       
-      // 入力解除してスマホのズームを戻す
       document.getElementById("searchBox").blur();
 
       searchMarkers.forEach(m => map.removeLayer(m)); searchMarkers = [];
@@ -142,7 +141,7 @@
         const lng = pos.coords.longitude;
         map.setView([lat, lng], 16);
         if (myMarker) map.removeLayer(myMarker);
-        myMarker = L.circleMarker([lat, lng], { radius: 8, color: 'white', fillColor: 'blue', fillOpacity: 0.8, weight: 2 }).addTo(map);
+        myMarker = L.circleMarker([lat, lng], { radius: 8, color: 'white', fillColor: 'orange', fillOpacity: 0.8, weight: 2 }).addTo(map);
       });
     };
 
@@ -208,7 +207,9 @@
     document.getElementById("undoBtn").onclick = () => { points.pop(); updateMap(); };
     document.getElementById("clearBtn").onclick = () => { 
       if (points.length > 0 && confirm("すべてのポイントを削除しますか？")) {
-        points = []; updateMap(); 
+        points = []; 
+        updateMap();
+        document.getElementById("menuPanel").style.display = "none";
       }
     };
 
