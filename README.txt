@@ -4,7 +4,7 @@
 
 ## 🚀 公開URL
 
-https://astro8865.github.io/route_app/indexsp.html
+https://astro8865.github.io/route_app/
 
 ## 🛠 機能
 - **ルート作成**: 地図をクリックしてポイントを打つと自動でルートが描画されます。
