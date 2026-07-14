@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>ルート作成アプリ（安全リルート確認版）</title>
+  <title>ルート作成アプリ（安全リルート確認＋ナビ切替即時反映版）</title>
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -207,6 +207,9 @@
           watchId = null;
         }
       }
+
+      // ナビのON/OFFが切り替わったため、即座に全マーカーのドラッグ状態（移動可否）を再描画で更新
+      redrawMarkers(); 
     };
 
     function clearRouteLayers() {
