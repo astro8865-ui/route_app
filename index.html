@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>ルート作成アプリ（検索機能付）</title>
+  <title>ルート作成アプリ（安全リルート確認版）</title>
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -100,7 +100,6 @@
   <div id="map"></div>
 
   <script>
-    // iOS特有の「画面全体が動く」挙動を封じ込める
     document.addEventListener('gesturestart', function (e) {
       e.preventDefault();
     });
@@ -150,6 +149,7 @@
     }
 
     let myMarker = null;
+    let currentCurrentCoords = null; 
     let points = [];
     let markers = [];
     let currentRoute = null;
@@ -157,27 +157,27 @@
     let navigating = false;
     let watchId = null;
     
-    // GPS自動スクロール時のゴーストタップ誤作動防止フラグ
     let isMapMoving = false;
     map.on('movestart', () => { isMapMoving = true; });
     map.on('moveend', () => { setTimeout(() => { isMapMoving = false; }, 100); });
 
-    // 📍現在地取得ボタンが押された時
+    // 📍現在地取得ボタン
     document.getElementById("locateBtn").onclick = (e) => {
       L.DomEvent.stopPropagation(e);
       if (!navigator.geolocation) return alert("ブラウザが位置情報に対応していません");
       navigator.geolocation.getCurrentPosition(pos => {
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
+        currentCurrentCoords = [lng, lat]; 
         map.setView([lat, lng], 16);
         
         if (myMarker) map.removeLayer(myMarker);
         myMarker = L.circleMarker([lat, lng], { radius: 8, color: 'white', fillColor: 'orange', fillOpacity: 0.8, weight: 2, pane: 'tooltipPane' }).addTo(map);
-        myMarker.bringToFront(); // 最前面に引っ張り出す
+        myMarker.bringToFront();
       });
     };
 
-    // 🚗カーナビモードボタンが押された時
+    // 🚗カーナビモードボタン
     document.getElementById("navBtn").onclick = (e) => {
       L.DomEvent.stopPropagation(e);
       navigating = !navigating;
@@ -192,12 +192,13 @@
         watchId = navigator.geolocation.watchPosition(pos => {
           const lat = pos.coords.latitude;
           const lng = pos.coords.longitude;
+          currentCurrentCoords = [lng, lat]; 
           map.setView([lat, lng]);
           
           if (myMarker) myMarker.setLatLng([lat, lng]);
           else myMarker = L.circleMarker([lat, lng], { radius: 8, color: 'white', fillColor: 'orange', fillOpacity: 0.8, weight: 2, pane: 'tooltipPane' }).addTo(map);
           
-          myMarker.bringToFront(); // ルート線の上に強制表示
+          myMarker.bringToFront();
         }, null, { enableHighAccuracy: true });
       } else {
         document.getElementById("navBtn").style.background = "";
@@ -219,7 +220,7 @@
         const color = i === 0 ? "green" : (i === points.length - 1 ? "red" : "blue");
         
         const marker = L.marker([p[1], p[0]], {
-          draggable: true,
+          draggable: !navigating, 
           icon: L.divIcon({
             className: "custom-marker",
             iconSize: [40, 40],
@@ -230,7 +231,30 @@
           })
         }).addTo(map);
 
-        marker.on("click", (evt) => { L.DomEvent.stopPropagation(evt); points.splice(i, 1); updateMap(); });
+        // 各経由ポイントがタップされた時
+        marker.on("click", (evt) => { 
+          L.DomEvent.stopPropagation(evt); 
+          
+          if (navigating) {
+            // 🚗【ナビオン時】現在地から繋ぎ直す（確認ダイアログ付き）
+            if (!currentCurrentCoords) {
+              alert("現在地が取得できていません。少し待つか📍ボタンを押してください。");
+              return;
+            }
+
+            // リルートの確認確認
+            if (confirm("現在地からこのポイントへルートを繋ぎ直しますか？")) {
+              const remainingPoints = points.slice(i);
+              points = [ [currentCurrentCoords[0], currentCurrentCoords[1]], ...remainingPoints ];
+              updateMap();
+            }
+          } else {
+            // 🛠️【ナビオフ時】通常通り経由ポイントを削除
+            points.splice(i, 1); 
+            updateMap(); 
+          }
+        });
+        
         marker.on("dragend", (evt) => { const latlng = evt.target.getLatLng(); points[i] = [latlng.lng, latlng.lat]; updateMap(); });
         markers.push(marker);
       });
@@ -245,9 +269,11 @@
       }
     }
 
-    // 地図クリック時の処理
+    // 地図の空いている場所をクリックした時
     map.on('click', (e) => { 
       if (isMapMoving) return;
+      if (navigating) return; 
+      
       points.push([e.latlng.lng, e.latlng.lat]); 
       updateMap(); 
     });
@@ -273,7 +299,6 @@
             patterns: [{ offset: 25, repeat: 50, symbol: L.Symbol.arrowHead({ pixelSize: 12, pathOptions: { color: 'white', weight: 2 } }) }]
           }).addTo(map);
           
-          // 🔥最重要: ルート線と矢印が新しく重なった後に、現在地ポインタを最前面へ引き上げる
           if (myMarker) {
             myMarker.bringToFront();
           }
@@ -281,6 +306,7 @@
           currentRoute.on("click", (evt) => {
             L.DomEvent.stopPropagation(evt);
             if (isMapMoving) return;
+            if (navigating) return;
 
             let minDist = Infinity; let insertIndex = points.length - 1;
             for (let i = 0; i < points.length - 1; i++) {
@@ -298,7 +324,6 @@
         const zoom = map.getZoom();
         const weight = zoom < 10 ? 4 : (zoom < 14 ? 6 : 8);
         currentRoute.setStyle({ weight: weight });
-        // ズーム変更による再描画時もポインタを最前面に保持
         if (myMarker) myMarker.bringToFront();
       }
     });
