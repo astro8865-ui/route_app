@@ -107,9 +107,6 @@
     const map = L.map('map', { zoomControl: false }).setView([34.6937, 135.5023], 14);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
-    // 初回描画サイズバグの対策
-    setTimeout(() => { map.invalidateSize(); }, 100);
-
     document.getElementById("menuToggle").onclick = function(e) {
       L.DomEvent.stopPropagation(e);
       const p = document.getElementById("menuPanel");
@@ -164,18 +161,18 @@
     map.on('movestart', () => { isMapMoving = true; });
     map.on('moveend', () => { setTimeout(() => { isMapMoving = false; }, 100); });
 
-    // カーナビ風マーカー用アイコン作成関数 (丸と矢印)
+    // カーナビ風の丸と矢印アイコン（SVG型）を作成・更新する関数
+    // ズレが発生しないL.divIconを用い、内部のSVGに回転を加えることで急ピンチ対応に
     function createNavIcon(heading) {
       const angle = (heading !== null && heading !== undefined && !isNaN(heading)) ? heading : 0;
       return L.divIcon({
-        className: 'nav-marker',
-        iconSize: [40, 40],
-        iconAnchor: [20, 20],
-        html: `<div style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
-                 <div style="position: relative; width: 24px; height: 24px; background: #0078ff; border: 3px solid white; border-radius: 50%; box-shadow: 0 2px 5px rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center;">
-                   <div style="width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-bottom: 11px solid white; transform: rotate(${angle}deg); transform-origin: 50% 70%;"></div>
-                 </div>
-               </div>`
+        className: 'nav-marker-icon',
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
+        html: `<svg width="24" height="24" viewBox="0 0 24 24" style="filter: drop-shadow(0px 2px 3px rgba(0,0,0,0.4));">
+                 <circle cx="12" cy="12" r="10" fill="#0078ff" stroke="white" stroke-width="2" />
+                 <polygon points="12,4 17,16 12,13 7,16" fill="white" transform="rotate(${angle} 12 12)" />
+               </svg>`
       });
     }
 
@@ -191,8 +188,9 @@
         map.setView([lat, lng], 16);
         
         if (myMarker) map.removeLayer(myMarker);
-        // 安全に描画するため、pane: 'tooltipPane' を廃止
-        myMarker = L.marker([lat, lng], { icon: createNavIcon(heading) }).addTo(map);
+        
+        // 最初のソースコード同様、ズームに完全追従するようL.marker + divIconにて作成
+        myMarker = L.marker([lat, lng], { icon: createNavIcon(heading), pane: 'tooltipPane' }).addTo(map);
         myMarker.bringToFront();
       });
     };
@@ -220,8 +218,7 @@
             myMarker.setLatLng([lat, lng]);
             myMarker.setIcon(createNavIcon(heading));
           } else {
-            // 安全に描画するため、pane: 'tooltipPane' を廃止
-            myMarker = L.marker([lat, lng], { icon: createNavIcon(heading) }).addTo(map);
+            myMarker = L.marker([lat, lng], { icon: createNavIcon(heading), pane: 'tooltipPane' }).addTo(map);
           }
           
           myMarker.bringToFront();
