@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>ルート作成・カーナビアプリ（自動リルート完全版）</title>
+  <title>ルート作成アプリ（安全リルート確認＋ナビ切替即時反映版）</title>
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -72,13 +72,9 @@
 
     #routeList { max-height: 120px; overflow-y: auto; display: none; font-size: 10px; }
     button { padding: 1px 4px; font-size: 9px; cursor: pointer; }
+    .custom-marker { transform: translate(-7px, -7px); }
 
-    .custom-marker {
-      background: none !important;
-      border: none !important;
-    }
-
-    /* 🚗 ナビモード用のカスタム回転マーカー */
+    /* 🚗 ナビモード用のカスタム回転マーカーのスタイル（巨大化＆センター完全固定版） */
     .nav-marker-container {
       width: 40px; height: 40px;
       background: #1c6cd5; border: 3px solid white; border-radius: 50%;
@@ -88,6 +84,7 @@
       box-sizing: border-box;
     }
     
+    /* 💡 SVGのパスで鋭利な二等辺三角形を描画し、親の真ん中に完全固定 */
     .nav-marker-svg {
       width: 100%; height: 100%;
       position: absolute;
@@ -182,8 +179,6 @@
     let lastLng = null;
     let currentHeading = 0; 
 
-    let routeAbortController = null;
-
     let isMapMoving = false;
     map.on('movestart', () => { isMapMoving = true; });
     map.on('moveend', () => { setTimeout(() => { isMapMoving = false; }, 100); });
@@ -202,6 +197,7 @@
       if (myMarker) map.removeLayer(myMarker);
       
       if (navigating) {
+        // 💡 ズレを完全に防ぐため、円の内寸にジャストフィットするSVGの巨大三角（シャープな先端）を挿入
         const iconHtml = `
           <div class="nav-marker-container">
             <svg class="nav-marker-svg" viewBox="0 0 40 40" style="transform: rotate(${currentHeading}deg);">
@@ -210,6 +206,7 @@
           </div>`;
         
         myMarker = L.marker([lat, lng], {
+          // iconSizeを40x40、アンカーを20x20の完璧な中心点に設定
           icon: L.divIcon({ className: '', html: iconHtml, iconSize: [40, 40], iconAnchor: [20, 20] }),
           pane: 'tooltipPane'
         }).addTo(map);
@@ -249,9 +246,9 @@
         lastLat = null;
         lastLng = null;
 
+        // 💡 最初の位置が確定している場合は、GPSが切り替わるのを待たずに即座に0度（上向き）で巨大矢印を表示
         if (currentCurrentCoords) {
           currentHeading = 0;
-          map.setView([currentCurrentCoords[1], currentCurrentCoords[0]]); 
           updateMyMarkerLayer(currentCurrentCoords[1], currentCurrentCoords[0]);
         }
 
@@ -259,7 +256,6 @@
           const lat = pos.coords.latitude;
           const lng = pos.coords.longitude;
           currentCurrentCoords = [lng, lat]; 
-          
           map.setView([lat, lng]);
           
           if (lastLat !== null && lastLng !== null && (lastLat !== lat || lastLng !== lng)) {
@@ -294,25 +290,19 @@
       markers.forEach(m => map.removeLayer(m)); markers = [];
       points.forEach((p, i) => {
         const color = i === 0 ? "green" : (i === points.length - 1 ? "red" : "blue");
-        const isDraggable = !navigating;
-
+        
         const marker = L.marker([p[1], p[0]], {
-          draggable: isDraggable, 
+          draggable: !navigating, 
           icon: L.divIcon({
             className: "custom-marker",
-            iconSize: [14, 14],
-            iconAnchor: [7, 7],
-            html: `<div style="width:14px;height:14px;background:${color};border-radius:50%;border:2px solid white;box-sizing:border-box;"></div>`
+            iconSize: [40, 40],
+            iconAnchor: [20, 20],
+            html: `<div style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;">
+                     <div style="width:14px;height:14px;background:${color};border-radius:50%;border:2px solid white;pointer-events:none;"></div>
+                   </div>`
           })
         }).addTo(map);
 
-        if (navigating) {
-          if (marker.dragging) {
-            marker.dragging.disable();
-          }
-        }
-
-        // 🚗 リルート判定（ピンのクリック時に現在地起点で再計算）
         marker.on("click", (evt) => { 
           L.DomEvent.stopPropagation(evt); 
           
@@ -322,7 +312,7 @@
               return;
             }
 
-            if (confirm("現在地からこのポイントへルートを繋ぎ直しますか？（リルート）")) {
+            if (confirm("現在地からこのポイントへルートを繋ぎ直しますか？")) {
               const remainingPoints = points.slice(i);
               points = [ [currentCurrentCoords[0], currentCurrentCoords[1]], ...remainingPoints ];
               updateMap();
@@ -333,13 +323,7 @@
           }
         });
         
-        marker.on("dragend", (evt) => { 
-          if (navigating) return; 
-          const latlng = evt.target.getLatLng(); 
-          points[i] = [latlng.lng, latlng.lat]; 
-          updateMap(); 
-        });
-
+        marker.on("dragend", (evt) => { const latlng = evt.target.getLatLng(); points[i] = [latlng.lng, latlng.lat]; updateMap(); });
         markers.push(marker);
       });
     }
@@ -362,14 +346,8 @@
     });
 
     function drawRoute() {
-      if (routeAbortController) {
-        routeAbortController.abort();
-      }
-      routeAbortController = new AbortController();
-      const signal = routeAbortController.signal;
-
       const coordsStr = points.map(p => `${p[0]},${p[1]}`).join(";");
-      fetch(`https://router.project-osrm.org/route/v1/driving/${coordsStr}?overview=full&geometries=geojson`, { signal })
+      fetch(`https://router.project-osrm.org/route/v1/driving/${coordsStr}?overview=full&geometries=geojson`)
         .then(res => res.json())
         .then(data => {
           if (!data.routes || data.routes.length === 0) {
@@ -405,11 +383,6 @@
             points.splice(insertIndex, 0, [evt.latlng.lng, evt.latlng.lat]);
             updateMap();
           });
-        })
-        .catch(err => {
-          if (err.name !== 'AbortError') {
-            console.error(err);
-          }
         });
     }
 
