@@ -74,7 +74,7 @@
     button { padding: 1px 4px; font-size: 9px; cursor: pointer; }
     .custom-marker { transform: translate(-7px, -7px); }
 
-    /* 🚗 ナビモード用のカスタム回転マーカーのスタイル（巨大化＆センター完全固定版） */
+    /* 🚗 ナビモード用のカスタム回転マーカーのスタイル */
     .nav-marker-container {
       width: 40px; height: 40px;
       background: #1c6cd5; border: 3px solid white; border-radius: 50%;
@@ -84,7 +84,6 @@
       box-sizing: border-box;
     }
     
-    /* 💡 SVGのパスで鋭利な二等辺三角形を描画し、親の真ん中に完全固定 */
     .nav-marker-svg {
       width: 100%; height: 100%;
       position: absolute;
@@ -197,7 +196,6 @@
       if (myMarker) map.removeLayer(myMarker);
       
       if (navigating) {
-        // 💡 ズレを完全に防ぐため、円の内寸にジャストフィットするSVGの巨大三角（シャープな先端）を挿入
         const iconHtml = `
           <div class="nav-marker-container">
             <svg class="nav-marker-svg" viewBox="0 0 40 40" style="transform: rotate(${currentHeading}deg);">
@@ -206,7 +204,6 @@
           </div>`;
         
         myMarker = L.marker([lat, lng], {
-          // iconSizeを40x40、アンカーを20x20の完璧な中心点に設定
           icon: L.divIcon({ className: '', html: iconHtml, iconSize: [40, 40], iconAnchor: [20, 20] }),
           pane: 'tooltipPane'
         }).addTo(map);
@@ -246,9 +243,9 @@
         lastLat = null;
         lastLng = null;
 
-        // 💡 最初の位置が確定している場合は、GPSが切り替わるのを待たずに即座に0度（上向き）で巨大矢印を表示
         if (currentCurrentCoords) {
           currentHeading = 0;
+          map.setView([currentCurrentCoords[1], currentCurrentCoords[0]]); // 🚗 開始時に即座に中心へ移動
           updateMyMarkerLayer(currentCurrentCoords[1], currentCurrentCoords[0]);
         }
 
@@ -256,6 +253,8 @@
           const lat = pos.coords.latitude;
           const lng = pos.coords.longitude;
           currentCurrentCoords = [lng, lat]; 
+          
+          // 🚗 修正: 位置情報が更新されるたびに、確実に地図の中心を現在地に追従させる
           map.setView([lat, lng]);
           
           if (lastLat !== null && lastLng !== null && (lastLat !== lat || lastLng !== lng)) {
