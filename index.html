@@ -107,7 +107,7 @@
     const map = L.map('map', { zoomControl: false }).setView([34.6937, 135.5023], 14);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
-    // 初回描画バグ対策（サイズ再計算）
+    // 初回描画サイズバグの対策
     setTimeout(() => { map.invalidateSize(); }, 100);
 
     document.getElementById("menuToggle").onclick = function(e) {
@@ -166,7 +166,6 @@
 
     // カーナビ風マーカー用アイコン作成関数 (丸と矢印)
     function createNavIcon(heading) {
-      // headingがnull, undefined, NaNの場合、または取得できないデバイスでは0度(北向き)をデフォルトに設定
       const angle = (heading !== null && heading !== undefined && !isNaN(heading)) ? heading : 0;
       return L.divIcon({
         className: 'nav-marker',
@@ -192,7 +191,8 @@
         map.setView([lat, lng], 16);
         
         if (myMarker) map.removeLayer(myMarker);
-        myMarker = L.marker([lat, lng], { icon: createNavIcon(heading), pane: 'tooltipPane' }).addTo(map);
+        // 安全に描画するため、pane: 'tooltipPane' を廃止
+        myMarker = L.marker([lat, lng], { icon: createNavIcon(heading) }).addTo(map);
         myMarker.bringToFront();
       });
     };
@@ -220,7 +220,8 @@
             myMarker.setLatLng([lat, lng]);
             myMarker.setIcon(createNavIcon(heading));
           } else {
-            myMarker = L.marker([lat, lng], { icon: createNavIcon(heading), pane: 'tooltipPane' }).addTo(map);
+            // 安全に描画するため、pane: 'tooltipPane' を廃止
+            myMarker = L.marker([lat, lng], { icon: createNavIcon(heading) }).addTo(map);
           }
           
           myMarker.bringToFront();
