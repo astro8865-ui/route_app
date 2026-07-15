@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>ルート作成アプリ（完全位置ズレ修正版）</title>
+  <title>ルート作成アプリ（ルート線ズレ完全防止版）</title>
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -73,13 +73,12 @@
     #routeList { max-height: 120px; overflow-y: auto; display: none; font-size: 10px; }
     button { padding: 1px 4px; font-size: 9px; cursor: pointer; }
 
-    /* 🛠️ 旧 custom-marker CSS（不具合の原因である transform: translate）を完全に消去 */
     .custom-marker {
       background: none !important;
       border: none !important;
     }
 
-    /* 🚗 ナビモード用のカスタム回転マーカーのスタイル */
+    /* 🚗 ナビモード用のカスタム回転マーカー（※お気に入りのデザインのまま維持） */
     .nav-marker-container {
       width: 40px; height: 40px;
       background: #1c6cd5; border: 3px solid white; border-radius: 50%;
@@ -182,6 +181,9 @@
     let lastLat = null;
     let lastLng = null;
     let currentHeading = 0; 
+
+    // 💡 非同期ルート通信をいつでも安全にキャンセル・破棄するためのコントローラー
+    let routeAbortController = null;
 
     let isMapMoving = false;
     map.on('movestart', () => { isMapMoving = true; });
@@ -296,14 +298,11 @@
         
         const marker = L.marker([p[1], p[0]], {
           draggable: !navigating, 
-          // 💡 iconAnchor を[20, 20]に設定。不具合の原因だった外部CSSのtranslateは完全排除。
           icon: L.divIcon({
             className: "custom-marker",
-            iconSize: [40, 40],
-            iconAnchor: [20, 20],
-            html: `<div style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;pointer-events:none;">
-                     <div style="width:14px;height:14px;background:${color};border-radius:50%;border:2px solid white;pointer-events:auto;"></div>
-                   </div>`
+            iconSize: [14, 14],
+            iconAnchor: [7, 7],
+            html: `<div style="width:14px;height:14px;background:${color};border-radius:50%;border:2px solid white;box-sizing:border-box;"></div>`
           })
         }).addTo(map);
 
@@ -350,8 +349,15 @@
     });
 
     function drawRoute() {
+      // 💡 既に通信中の古いルート描画リクエストがあれば、完全に破棄（キャンセル）して競合を防ぐ
+      if (routeAbortController) {
+        routeAbortController.abort();
+      }
+      routeAbortController = new AbortController();
+      const signal = routeAbortController.signal;
+
       const coordsStr = points.map(p => `${p[0]},${p[1]}`).join(";");
-      fetch(`https://router.project-osrm.org/route/v1/driving/${coordsStr}?overview=full&geometries=geojson`)
+      fetch(`https://router.project-osrm.org/route/v1/driving/${coordsStr}?overview=full&geometries=geojson`, { signal })
         .then(res => res.json())
         .then(data => {
           if (!data.routes || data.routes.length === 0) {
@@ -387,6 +393,12 @@
             points.splice(insertIndex, 0, [evt.latlng.lng, evt.latlng.lat]);
             updateMap();
           });
+        })
+        .catch(err => {
+          // キャンセル（abort）時のエラーは想定内の動作なので無視して処理を流します
+          if (err.name !== 'AbortError') {
+            console.error(err);
+          }
         });
     }
 
