@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>ルート作成アプリ（安全リルート確認＋ナビ切替即時反映版）</title>
+  <title>ルート作成アプリ（完全位置ズレ修正版）</title>
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -72,7 +72,12 @@
 
     #routeList { max-height: 120px; overflow-y: auto; display: none; font-size: 10px; }
     button { padding: 1px 4px; font-size: 9px; cursor: pointer; }
-    .custom-marker { transform: translate(-7px, -7px); }
+
+    /* 🛠️ 旧 custom-marker CSS（不具合の原因である transform: translate）を完全に消去 */
+    .custom-marker {
+      background: none !important;
+      border: none !important;
+    }
 
     /* 🚗 ナビモード用のカスタム回転マーカーのスタイル */
     .nav-marker-container {
@@ -245,7 +250,7 @@
 
         if (currentCurrentCoords) {
           currentHeading = 0;
-          map.setView([currentCurrentCoords[1], currentCurrentCoords[0]]); // 🚗 開始時に即座に中心へ移動
+          map.setView([currentCurrentCoords[1], currentCurrentCoords[0]]); 
           updateMyMarkerLayer(currentCurrentCoords[1], currentCurrentCoords[0]);
         }
 
@@ -254,7 +259,6 @@
           const lng = pos.coords.longitude;
           currentCurrentCoords = [lng, lat]; 
           
-          // 🚗 修正: 位置情報が更新されるたびに、確実に地図の中心を現在地に追従させる
           map.setView([lat, lng]);
           
           if (lastLat !== null && lastLng !== null && (lastLat !== lat || lastLng !== lng)) {
@@ -292,12 +296,13 @@
         
         const marker = L.marker([p[1], p[0]], {
           draggable: !navigating, 
+          // 💡 iconAnchor を[20, 20]に設定。不具合の原因だった外部CSSのtranslateは完全排除。
           icon: L.divIcon({
             className: "custom-marker",
             iconSize: [40, 40],
             iconAnchor: [20, 20],
-            html: `<div style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;">
-                     <div style="width:14px;height:14px;background:${color};border-radius:50%;border:2px solid white;pointer-events:none;"></div>
+            html: `<div style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;pointer-events:none;">
+                     <div style="width:14px;height:14px;background:${color};border-radius:50%;border:2px solid white;pointer-events:auto;"></div>
                    </div>`
           })
         }).addTo(map);
