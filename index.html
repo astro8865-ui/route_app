@@ -98,8 +98,28 @@
     document.getElementById("undoBtn").onclick = (e) => { L.DomEvent.stopPropagation(e); points.pop(); updateMap(); };
     document.getElementById("reverseBtn").onclick = (e) => { L.DomEvent.stopPropagation(e); points.reverse(); updateMap(); };
     document.getElementById("saveBtn").onclick = (e) => { L.DomEvent.stopPropagation(e); const name = prompt("ルート名"); if (name) { let saved = JSON.parse(localStorage.getItem("routes") || "[]"); saved.push({ name, points }); localStorage.setItem("routes", JSON.stringify(saved)); } };
-    document.getElementById("listBtn").onclick = function(e) { L.DomEvent.stopPropagation(e); const listDiv = document.getElementById("routeList"); listDiv.style.display = listDiv.style.display === "none" ? "block" : "none"; if (listDiv.style.display === "block") { listDiv.innerHTML = ""; JSON.parse(localStorage.getItem("routes") || "[]").forEach((r, i) => { const item = document.createElement("div"); item.innerHTML = `<strong>${r.name}</strong> <button onclick="loadRoute(${i})">読込</button>`; listDiv.appendChild(item); }); } };
+    document.getElementById("listBtn").onclick = function(e) { 
+      L.DomEvent.stopPropagation(e); 
+      const listDiv = document.getElementById("routeList"); 
+      listDiv.style.display = listDiv.style.display === "none" ? "block" : "none"; 
+      if (listDiv.style.display === "block") { 
+        listDiv.innerHTML = ""; 
+        JSON.parse(localStorage.getItem("routes") || "[]").forEach((r, i) => { 
+          const item = document.createElement("div"); 
+          item.innerHTML = `<strong>${r.name}</strong> <button onclick="loadRoute(${i})">読込</button> <button onclick="deleteRoute(${i})">削除</button>`; 
+          listDiv.appendChild(item); 
+        }); 
+      } 
+    };
     window.loadRoute = (idx) => { points = JSON.parse(localStorage.getItem("routes"))[idx].points; updateMap(); document.getElementById("menuPanel").style.display = "none"; document.getElementById("routeList").style.display = "none"; };
+    window.deleteRoute = (idx) => { 
+      let saved = JSON.parse(localStorage.getItem("routes") || "[]"); 
+      saved.splice(idx, 1); 
+      localStorage.setItem("routes", JSON.stringify(saved)); 
+      // 削除後、一覧をリフレッシュするために再度クリックを模倣
+      document.getElementById("listBtn").onclick();
+      document.getElementById("listBtn").onclick();
+    };
     document.getElementById("clearBtn").onclick = (e) => { L.DomEvent.stopPropagation(e); if (confirm("クリアしますか？")) { points = []; updateMap(); document.getElementById("menuPanel").style.display = "none"; } };
   </script>
 </body>
