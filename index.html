@@ -74,21 +74,21 @@
     button { padding: 1px 4px; font-size: 9px; cursor: pointer; }
     .custom-marker { transform: translate(-7px, -7px); }
 
-    /* 🚗 ナビモード用のカスタム回転マーカーのスタイル（巨大化＆センター完全固定版） */
+    /* 🚗 ナビモード用のカスタム回転マーカーのスタイル（シャープ化デザイン版） */
     .nav-marker-container {
-      width: 40px; height: 40px;
-      background: #1c6cd5; border: 3px solid white; border-radius: 50%;
+      width: 36px; height: 36px;
+      background: #1c6cd5; border: 2.5px solid white; border-radius: 50%;
       box-shadow: 0 4px 10px rgba(0,0,0,0.4);
       display: flex; align-items: center; justify-content: center;
-      position: relative;
-      box-sizing: border-box;
     }
-    
-    /* 💡 SVGのパスで鋭利な二等辺三角形を描画し、親の真ん中に完全固定 */
-    .nav-marker-svg {
-      width: 100%; height: 100%;
-      position: absolute;
-      top: 0; left: 0;
+    .nav-marker-arrow {
+      width: 0; height: 0;
+      /* 左右幅を細く、高さを出すことで鋭角な先端を作ります */
+      border-left: 5px solid transparent;
+      border-right: 5px solid transparent;
+      border-bottom: 16px solid #ffffff; 
+      /* 中心点を微調整して回転軸を最適化 */
+      margin-top: -5px; 
       transition: transform 0.2s ease;
     }
   </style>
@@ -197,17 +197,9 @@
       if (myMarker) map.removeLayer(myMarker);
       
       if (navigating) {
-        // 💡 ズレを完全に防ぐため、円の内寸にジャストフィットするSVGの巨大三角（シャープな先端）を挿入
-        const iconHtml = `
-          <div class="nav-marker-container">
-            <svg class="nav-marker-svg" viewBox="0 0 40 40" style="transform: rotate(${currentHeading}deg);">
-              <polygon points="20,3 34,32 20,26 6,32" fill="#ffffff" />
-            </svg>
-          </div>`;
-        
+        const iconHtml = `<div class="nav-marker-container"><div class="nav-marker-arrow" style="transform: rotate(${currentHeading}deg);"></div></div>`;
         myMarker = L.marker([lat, lng], {
-          // iconSizeを40x40、アンカーを20x20の完璧な中心点に設定
-          icon: L.divIcon({ className: '', html: iconHtml, iconSize: [40, 40], iconAnchor: [20, 20] }),
+          icon: L.divIcon({ className: '', html: iconHtml, iconSize: [36, 36], iconAnchor: [18, 18] }),
           pane: 'tooltipPane'
         }).addTo(map);
       } else {
@@ -245,12 +237,6 @@
         
         lastLat = null;
         lastLng = null;
-
-        // 💡 最初の位置が確定している場合は、GPSが切り替わるのを待たずに即座に0度（上向き）で巨大矢印を表示
-        if (currentCurrentCoords) {
-          currentHeading = 0;
-          updateMyMarkerLayer(currentCurrentCoords[1], currentCurrentCoords[0]);
-        }
 
         watchId = navigator.geolocation.watchPosition(pos => {
           const lat = pos.coords.latitude;
