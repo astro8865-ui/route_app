@@ -161,8 +161,7 @@
     map.on('movestart', () => { isMapMoving = true; });
     map.on('moveend', () => { setTimeout(() => { isMapMoving = false; }, 100); });
 
-    // カーナビ風の丸と矢印アイコン（SVG型）を作成・更新する関数
-    // ズレが発生しないL.divIconを用い、内部のSVGに回転を加えることで急ピンチ対応に
+    // カーナビ風の丸と矢印アイコン（SVG型）
     function createNavIcon(heading) {
       const angle = (heading !== null && heading !== undefined && !isNaN(heading)) ? heading : 0;
       return L.divIcon({
@@ -188,8 +187,6 @@
         map.setView([lat, lng], 16);
         
         if (myMarker) map.removeLayer(myMarker);
-        
-        // 最初のソースコード同様、ズームに完全追従するようL.marker + divIconにて作成
         myMarker = L.marker([lat, lng], { icon: createNavIcon(heading), pane: 'tooltipPane' }).addTo(map);
         myMarker.bringToFront();
       });
@@ -231,7 +228,6 @@
         }
       }
 
-      // ナビのON/OFFが切り替わったため、即座に全マーカーのドラッグ状態（移動可否）を再描画で更新
       redrawMarkers(); 
     };
 
@@ -257,25 +253,21 @@
           })
         }).addTo(map);
 
-        // 各経由ポイントがタップされた時
         marker.on("click", (evt) => { 
           L.DomEvent.stopPropagation(evt); 
           
           if (navigating) {
-            // 🚗【ナビオン時】現在地から繋ぎ直す（確認ダイアログ付き）
             if (!currentCurrentCoords) {
               alert("現在地が取得できていません。少し待つか📍ボタンを押してください。");
               return;
             }
 
-            // リルートの確認確認
             if (confirm("現在地からこのポイントへルートを繋ぎ直しますか？")) {
               const remainingPoints = points.slice(i);
               points = [ [currentCurrentCoords[0], currentCurrentCoords[1]], ...remainingPoints ];
               updateMap();
             }
           } else {
-            // 🛠️【ナビオフ時】通常通り経由ポイントを削除
             points.splice(i, 1); 
             updateMap(); 
           }
@@ -295,7 +287,6 @@
       }
     }
 
-    // 地図の空いている場所をクリックした時
     map.on('click', (e) => { 
       if (isMapMoving) return;
       if (navigating) return; 
@@ -345,12 +336,10 @@
         });
     }
 
+    // ズーム操作が完了したタイミングで、ルート線と白い矢印を引き直す
     map.on('zoomend', function() {
-      if (currentRoute) {
-        const zoom = map.getZoom();
-        const weight = zoom < 10 ? 4 : (zoom < 14 ? 6 : 8);
-        currentRoute.setStyle({ weight: weight });
-        if (myMarker) myMarker.bringToFront();
+      if (points.length >= 2) {
+        drawRoute();
       }
     });
 
