@@ -113,12 +113,14 @@
     };
     window.loadRoute = (idx) => { points = JSON.parse(localStorage.getItem("routes"))[idx].points; updateMap(); document.getElementById("menuPanel").style.display = "none"; document.getElementById("routeList").style.display = "none"; };
     window.deleteRoute = (idx) => { 
+      // 1. ローカルストレージを更新
       let saved = JSON.parse(localStorage.getItem("routes") || "[]"); 
       saved.splice(idx, 1); 
       localStorage.setItem("routes", JSON.stringify(saved)); 
-      // 削除後、一覧をリフレッシュするために再度クリックを模倣
-      document.getElementById("listBtn").onclick();
-      document.getElementById("listBtn").onclick();
+      
+      // 2. 画面上の要素だけを即座に削除（再描画せず、DOMを直接操作）
+      // クリックされたボタンの親要素(div)を取得して削除します
+      event.target.parentNode.remove();
     };
     document.getElementById("clearBtn").onclick = (e) => { L.DomEvent.stopPropagation(e); if (confirm("クリアしますか？")) { points = []; updateMap(); document.getElementById("menuPanel").style.display = "none"; } };
   </script>
