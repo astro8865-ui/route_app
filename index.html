@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>ルート作成アプリ（ルート線ズレ完全防止版）</title>
+  <title>ルート作成・カーナビアプリ（自動リルート完全版）</title>
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -78,7 +78,7 @@
       border: none !important;
     }
 
-    /* 🚗 ナビモード用のカスタム回転マーカー（※お気に入りのデザインのまま維持） */
+    /* 🚗 ナビモード用のカスタム回転マーカー */
     .nav-marker-container {
       width: 40px; height: 40px;
       background: #1c6cd5; border: 3px solid white; border-radius: 50%;
@@ -182,7 +182,6 @@
     let lastLng = null;
     let currentHeading = 0; 
 
-    // 💡 非同期ルート通信をいつでも安全にキャンセル・破棄するためのコントローラー
     let routeAbortController = null;
 
     let isMapMoving = false;
@@ -295,9 +294,10 @@
       markers.forEach(m => map.removeLayer(m)); markers = [];
       points.forEach((p, i) => {
         const color = i === 0 ? "green" : (i === points.length - 1 ? "red" : "blue");
-        
+        const isDraggable = !navigating;
+
         const marker = L.marker([p[1], p[0]], {
-          draggable: !navigating, 
+          draggable: isDraggable, 
           icon: L.divIcon({
             className: "custom-marker",
             iconSize: [14, 14],
@@ -306,6 +306,13 @@
           })
         }).addTo(map);
 
+        if (navigating) {
+          if (marker.dragging) {
+            marker.dragging.disable();
+          }
+        }
+
+        // 🚗 リルート判定（ピンのクリック時に現在地起点で再計算）
         marker.on("click", (evt) => { 
           L.DomEvent.stopPropagation(evt); 
           
@@ -315,7 +322,7 @@
               return;
             }
 
-            if (confirm("現在地からこのポイントへルートを繋ぎ直しますか？")) {
+            if (confirm("現在地からこのポイントへルートを繋ぎ直しますか？（リルート）")) {
               const remainingPoints = points.slice(i);
               points = [ [currentCurrentCoords[0], currentCurrentCoords[1]], ...remainingPoints ];
               updateMap();
@@ -326,7 +333,13 @@
           }
         });
         
-        marker.on("dragend", (evt) => { const latlng = evt.target.getLatLng(); points[i] = [latlng.lng, latlng.lat]; updateMap(); });
+        marker.on("dragend", (evt) => { 
+          if (navigating) return; 
+          const latlng = evt.target.getLatLng(); 
+          points[i] = [latlng.lng, latlng.lat]; 
+          updateMap(); 
+        });
+
         markers.push(marker);
       });
     }
@@ -349,7 +362,6 @@
     });
 
     function drawRoute() {
-      // 💡 既に通信中の古いルート描画リクエストがあれば、完全に破棄（キャンセル）して競合を防ぐ
       if (routeAbortController) {
         routeAbortController.abort();
       }
@@ -395,7 +407,6 @@
           });
         })
         .catch(err => {
-          // キャンセル（abort）時のエラーは想定内の動作なので無視して処理を流します
           if (err.name !== 'AbortError') {
             console.error(err);
           }
