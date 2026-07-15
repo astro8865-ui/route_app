@@ -3,24 +3,104 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>カーナビ・ルート作成アプリ</title>
-
+  <title>ナビアプリ修正版</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet-geometryutil"></script>
   <script src="https://unpkg.com/leaflet-polylinedecorator"></script>
-
   <style>
     body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; overscroll-behavior: none; position: fixed; width: 100%; }
-    #map { height: 100%; width: 100%; position: relative; z-index: 1; touch-action: pan-x pan-y; }
-    
-    /* CSS変数で回転を制御するクラス */
-    .rotate-arrow { transition: transform 0.2s linear; transform: rotate(var(--rotation, 0deg)); }
-    
-    #topRightContainer { position: absolute; top: 10px; right: 10px; z-index: 1000; display: flex; flex-direction: column; gap: 8px; align-items: flex-end; pointer-events: none; }
-    #distanceBox, .icon-btn { pointer-events: auto; }
-    #distanceBox { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(5px); padding: 8px 12px; border-radius: 6px; font-size: 14px; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.3); }
+    #map { height: 100%; width: 100%; }
+    #topRightContainer { position: absolute; top: 10px; right: 10px; z-index: 1000; display: flex; flex-direction: column; gap: 8px; }
     .icon-btn { width: 40px; height: 40px; background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(5px); border-radius: 50%; box-shadow: 0 2px 5px rgba(0,0,0,0.3); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; border: 2px solid white; }
-    #menuToggle { position: absolute; top: 10px; left: 10px; z-index: 10000; padding: 6px 10px; background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(5px); border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
-    #menuPanel { position: absolute; top: 45px; left: 10px; z-index: 9999; background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(5px); padding: 8px; border-radius: 8px; box-shadow: 0 3px 6px rgba(0,0,0,0.2); display: none; width: 200px; pointer-events: auto; }
-    .btn { width: 100%; box-sizing: border-box; margin-bottom: 4px; padding: 6px; background: #4e9af1; color: white;
+    .rotate-arrow { transition: transform 0.2s linear; transform: rotate(var(--rotation, 0deg)); }
+  </style>
+</head>
+<body>
+  <div id="topRightContainer">
+    <div id="locateBtn" class="icon-btn">📍</div>
+    <div id="navBtn" class="icon-btn">🚗</div>
+  </div>
+  <div id="map"></div>
+
+  <script>
+    const map = L.map('map', { zoomControl: false }).setView([34.6937, 135.5023], 14);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+
+    let myMarker = null, points = [], markers = [], currentRoute = null, arrowDecorator = null, navigating = false, watchId = null;
+
+    // アイコン生成関数
+    function createNavIcon(isNav) {
+      return L.divIcon({
+        className: isNav ? 'nav-marker-icon rotate-arrow' : 'yellow-marker',
+        iconSize: [30, 30], iconAnchor: [15, 15],
+        html: isNav 
+          ? `<svg width="30" height="30" viewBox="0 0 30 30"><circle cx="15" cy="15" r="12" fill="#0078ff" stroke="white" stroke-width="2"/><polygon points="15,7 23,23 15,18 7,23" fill="white"/></svg>`
+          : `<svg width="24" height="24"><circle cx="12" cy="12" r="8" fill="#ffd700" stroke="white" stroke-width="2.5"/></svg>`
+      });
+    }
+
+    // 更新処理
+    function updateLocation(pos) {
+      const { latitude: lat, longitude: lng, heading } = pos.coords;
+      if (!myMarker) {
+        myMarker = L.marker([lat, lng], { icon: createNavIcon(navigating) }).addTo(map);
+      } else {
+        myMarker.setLatLng([lat, lng]);
+        if (navigating) {
+          myMarker.setIcon(createNavIcon(true));
+          const el = myMarker.getElement();
+          if (el && heading !== null) el.style.setProperty('--rotation', heading + 'deg');
+        } else {
+          myMarker.setIcon(createNavIcon(false));
+        }
+      }
+      if(navigating) map.panTo([lat, lng]);
+    }
+
+    document.getElementById("navBtn").onclick = () => {
+      navigating = !navigating;
+      document.getElementById("navBtn").style.background = navigating ? "rgba(255, 200, 0, 0.8)" : "";
+      if (navigating) {
+        watchId = navigator.geolocation.watchPosition(updateLocation, null, { enableHighAccuracy: true });
+      } else {
+        navigator.geolocation.clearWatch(watchId);
+        if (myMarker) myMarker.setIcon(createNavIcon(false));
+      }
+    };
+    
+    document.getElementById("locateBtn").onclick = () => {
+        navigator.geolocation.getCurrentPosition(pos => {
+            const { latitude: lat, longitude: lng } = pos.coords;
+            map.setView([lat, lng], 16);
+        });
+    };
+
+    // 地図クリックでポイント追加
+    map.on('click', (e) => { 
+        if(navigating) return;
+        points.push([e.latlng.lng, e.latlng.lat]);
+        drawRoute();
+    });
+
+    // ルート描画
+    function drawRoute() {
+        if(points.length < 2) return;
+        const coords = points.map(p => `${p[0]},${p[1]}`).join(";");
+        fetch(`https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`)
+        .then(res => res.json())
+        .then(data => {
+            if (currentRoute) map.removeLayer(currentRoute);
+            if (arrowDecorator) map.removeLayer(arrowDecorator);
+            const route = data.routes[0];
+            currentRoute = L.polyline(route.geometry.coordinates.map(c => [c[1], c[0]]), { color: 'blue', weight: 6 }).addTo(map);
+            arrowDecorator = L.polylineDecorator(currentRoute, {
+                patterns: [{ offset: 25, repeat: 50, symbol: L.Symbol.arrowHead({ pixelSize: 12, pathOptions: { color: 'white' } }) }]
+            }).addTo(map);
+        });
+    }
+
+    map.on('zoomend', () => drawRoute());
+  </script>
+</body>
+</html>
