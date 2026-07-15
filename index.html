@@ -73,20 +73,6 @@
     #routeList { max-height: 120px; overflow-y: auto; display: none; font-size: 10px; }
     button { padding: 1px 4px; font-size: 9px; cursor: pointer; }
     .custom-marker { transform: translate(-7px, -7px); }
-
-    /* 🚗 追加：ナビモード用のカスタム回転マーカーのスタイル */
-    .nav-marker-container {
-      width: 32px; height: 32px;
-      background: #1c6cd5; border: 2.5px solid white; border-radius: 50%;
-      box-shadow: 0 3px 8px rgba(0,0,0,0.4);
-      display: flex; align-items: center; justify-content: center;
-    }
-    .nav-marker-arrow {
-      width: 0; height: 0;
-      border-left: 6px solid transparent; border-right: 6px solid transparent; border-bottom: 12px solid white;
-      margin-top: -2px;
-      transition: transform 0.2s ease; /* 回転を滑らかにする */
-    }
   </style>
 </head>
 
@@ -171,43 +157,9 @@
     let navigating = false;
     let watchId = null;
     
-    // 🚗 追加：進行方向（角度）を計算するための前回座標と現在の角度保持用変数
-    let lastLat = null;
-    let lastLng = null;
-    let currentHeading = 0; 
-
     let isMapMoving = false;
     map.on('movestart', () => { isMapMoving = true; });
     map.on('moveend', () => { setTimeout(() => { isMapMoving = false; }, 100); });
-
-    // 🚗 追加：2点間の座標から方位角（0〜360度）を計算する関数
-    function calculateHeading(lat1, lng1, lat2, lng2) {
-      const dLng = (lng2 - lng1) * Math.PI / 180;
-      const lat1Rad = lat1 * Math.PI / 180;
-      const lat2Rad = lat2 * Math.PI / 180;
-      const y = Math.sin(dLng) * Math.cos(lat2Rad);
-      const x = Math.cos(lat1Rad) * Math.sin(lat2Rad) - Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLng);
-      let brng = Math.atan2(y, x) * 180 / Math.PI;
-      return (brng + 360) % 360;
-    }
-
-    // 🚗 追加：現在地マーカーをナビ状態（回転三角）か通常状態（オレンジ丸）かで描き分ける統合関数
-    function updateMyMarkerLayer(lat, lng) {
-      if (myMarker) map.removeLayer(myMarker);
-      
-      if (navigating) {
-        // ナビモード：青丸の中に進行方向を向いた白三角（CSSで回転）
-        const iconHtml = `<div class="nav-marker-container"><div class="nav-marker-arrow" style="transform: rotate(${currentHeading}deg);"></div></div>`;
-        myMarker = L.marker([lat, lng], {
-          icon: L.divIcon({ className: '', html: iconHtml, iconSize: [32, 32], iconAnchor: [16, 16] }),
-          pane: 'tooltipPane'
-        }).addTo(map);
-      } else {
-        // 通常モード：オレンジのサークルマーカー
-        myMarker = L.circleMarker([lat, lng], { radius: 8, color: 'white', fillColor: 'orange', fillOpacity: 0.8, weight: 2, pane: 'tooltipPane' }).addTo(map);
-      }
-      myMarker.bringToFront();
-    }
 
     // 📍現在地取得ボタン
     document.getElementById("locateBtn").onclick = (e) => {
@@ -219,8 +171,9 @@
         currentCurrentCoords = [lng, lat]; 
         map.setView([lat, lng], 16);
         
-        // 🚗 統合したマーカー更新関数を呼び出し
-        updateMyMarkerLayer(lat, lng);
+        if (myMarker) map.removeLayer(myMarker);
+        myMarker = L.circleMarker([lat, lng], { radius: 8, color: 'white', fillColor: 'orange', fillOpacity: 0.8, weight: 2, pane: 'tooltipPane' }).addTo(map);
+        myMarker.bringToFront();
       });
     };
 
@@ -236,37 +189,22 @@
           document.getElementById("navBtn").style.background = "";
           return alert("位置情報非対応");
         }
-        
-        // ナビ開始時に前回の位置記録をリセット
-        lastLat = null;
-        lastLng = null;
-
         watchId = navigator.geolocation.watchPosition(pos => {
           const lat = pos.coords.latitude;
           const lng = pos.coords.longitude;
           currentCurrentCoords = [lng, lat]; 
           map.setView([lat, lng]);
           
-          // 🚗 移動を検知したら進行方向の角度を計算
-          if (lastLat !== null && lastLng !== null && (lastLat !== lat || lastLng !== lng)) {
-            currentHeading = calculateHeading(lastLat, lastLng, lat, lng);
-          }
-          lastLat = lat;
-          lastLng = lng;
-
-          // 🚗 統合したマーカー更新関数で回転を適用して描画
-          updateMyMarkerLayer(lat, lng);
+          if (myMarker) myMarker.setLatLng([lat, lng]);
+          else myMarker = L.circleMarker([lat, lng], { radius: 8, color: 'white', fillColor: 'orange', fillOpacity: 0.8, weight: 2, pane: 'tooltipPane' }).addTo(map);
           
+          myMarker.bringToFront();
         }, null, { enableHighAccuracy: true });
       } else {
         document.getElementById("navBtn").style.background = "";
         if (watchId) {
           navigator.geolocation.clearWatch(watchId);
           watchId = null;
-        }
-        // ナビ解除時、もし現在地座標があれば通常のオレンジ丸に戻す
-        if (currentCurrentCoords) {
-          updateMyMarkerLayer(currentCurrentCoords[1], currentCurrentCoords[0]);
         }
       }
 
@@ -442,14 +380,6 @@
       localStorage.setItem("routes", JSON.stringify(saved));
       document.getElementById("listBtn").click(); document.getElementById("listBtn").click();
     };
-
-    // 📱 追加：画面の縦横切り替え（サイズ変更）を監視して中心位置のズレを完全に防ぐロジック
-    window.addEventListener('resize', () => {
-      map.invalidateSize(); // 地図のサイズ計算をリセットして正常化する
-      if (currentCurrentCoords) {
-        map.setView([currentCurrentCoords[1], currentCurrentCoords[0]]); // 現在地を中心に再配置
-      }
-    });
   </script>
 </body>
 </html>
