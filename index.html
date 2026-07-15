@@ -77,10 +77,26 @@
     function updateNavMarker(lat, lng, heading) {
       let icon;
       if (navigating) {
+        // ナビゲーション時: 30ピクセル
         const angle = (heading !== null && !isNaN(heading)) ? heading : 0;
-        icon = L.divIcon({ className: 'nav-marker-icon', iconSize: [24, 24], iconAnchor: [12, 12], html: `<svg width="24" height="24" viewBox="0 0 24 24" style="filter: drop-shadow(0px 2px 3px rgba(0,0,0,0.4));"><circle cx="12" cy="12" r="10" fill="#0078ff" stroke="white" stroke-width="2" /><polygon points="12,4 17,16 12,13 7,16" fill="white" transform="rotate(${angle} 12 12)" /></svg>` });
+        icon = L.divIcon({ 
+          className: 'nav-marker-icon', 
+          iconSize: [30, 30], 
+          iconAnchor: [15, 15], 
+          html: `<svg width="30" height="30" viewBox="0 0 24 24" style="filter: drop-shadow(0px 2px 3px rgba(0,0,0,0.4));">
+                   <circle cx="12" cy="12" r="10" fill="#0078ff" stroke="white" stroke-width="2" />
+                   <polygon points="12,4 17,16 12,13 7,16" fill="white" transform="rotate(${angle} 12 12)" />
+                 </svg>` 
+        });
       } else {
-        icon = L.divIcon({ className: 'nav-marker-icon', iconSize: [20, 20], iconAnchor: [10, 10], html: `<div style="width:20px;height:20px;background:yellow;border:3px solid white;border-radius:50%;box-shadow:0 0 5px rgba(0,0,0,0.5);"></div>` });
+        // 非ナビゲーション時: 14ピクセル
+        // borderを大きくするとマーカー全体が太くなるため、width/height(14px)と合計サイズを確認してください
+        icon = L.divIcon({ 
+          className: 'nav-marker-icon', 
+          iconSize: [14, 14], 
+          iconAnchor: [7, 7], 
+          html: `<div style="width:14px;height:14px;background:yellow;border:2px solid white;border-radius:50%;box-shadow:0 0 5px rgba(0,0,0,0.5);"></div>` 
+        });
       }
       
       if (myMarker) { myMarker.setLatLng([lat, lng]); myMarker.setIcon(icon); }
